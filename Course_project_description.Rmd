@@ -1,0 +1,166 @@
+---
+title: "Course Project"
+author: "Tina Lagerblad - 920152698"
+date: "3/13/2022"
+output: html_document
+---
+
+
+## Introduction 
+
+In this analysis three datasets will be considered and used in order to gain more insight into the mean Covid-19 death rates per country. The first dataset is from the World Health Organization (WHO), and provides weekly insights to basic Covid-19 data by country, such as new cases and new deaths. The data spans from the beginning of the pandemic, and is still updated weekly, so the data is very relevant. The other two datasets considered are from the United Nations global data, specifically about population and gross domestic product (GDP) The first of the two provides yearly data about population, surface area and density based on country and region, with the most recent being from 2021. The most recent data on population by country is what will be of interest from this dataset. The second reports GDP and GDP per capita per world region and country, and was most recently updated in 2021. The data from this set that will be of interest is the most recent GDP per capita, per country. 
+
+From these datasets, a few questions of interest will hopefully be answered. Does a country's population or gross domestic product (GDP) per capita provide a better predictor variable for it's death rate due to Covid-19? Does each predictor variable have a positive or negative correlation with the response variable?
+
+
+```{r echo=TRUE, eval=TRUE}
+library(tidyverse)
+covid <- read_csv("WHO-COVID-19-global-data.csv")
+gdp <- read_csv("SYB64_230_202110_GDP and GDP Per Capita.csv")
+pop <- read_csv("SYB64_1_202110_Population, Surface Area and Density.csv")
+```
+
+
+
+## Background
+
+The Covid-19 pandemic has its roots in Wuhan, China, where in December, 2019, an unknown virus with symptoms similar to those of the flu began to spread. It was not until January, 2020 when the CDC published information about this new virus, and the world began to become more aware and wary of it's existence. The virus continued to spread rapidly across the world in early 2020 and in March, Covid-19 was declared a global pandemic by the WHO and it was declared a national emergency. Quickly following this, U.S. states began to implement and enforce strict restrictions in order to minimize the spread of the disease. This resulted in most Americants having to stay as quarantined as possible for months. The pandemic had a widereaching impact on society, spanning from food insecurity to job insecurity and having to deal with the lonliness and uncertainty the pandemic caused amongst many other impacts. 
+
+By early 2021, vaccines started to become available to the public that made it possible for everything to slowly open back up and start going back to normal. Now, the majority of americans have been vaccinated, so even with variants of the disease popping up, we are trending towards going back to life as normal. As of now, we still see the clear effects of Covid-19, with masks still being a standard in many places, many things still being remote and many other restrictions that have become a part of life, but everything is starting to open back up. The impact of the pandemic has been devestating for many, economically, death-wise, with over 900,000 total deaths in the U.S. so date, and in many other ways (4).
+
+
+
+## Data Exploration
+
+I created a new dataset by compiling variables from the WHO Covid-19 dataset, The UN data on GDP per capita and population, surface area and density. From these three datasets, I extracted the variables "Date_reported", "Country", "New_cases", "New_deaths", "GDP_PerCap", "Population" and "Death.Rate". The GDP_PerCap is the GDP per capita reported by the UN from the most recent year reported, which was 2019. The variable Population is the population for each country reported by the UN taken from a mid-year estimate in 2021. Death.Rate is the new deaths per day from the variable "New_deaths" divided by the country's total population from the variable Population. 
+
+From this dataset, the variables not used in this study were removed and some other variables were summarized. The resulting variables were country names (Country), the total number of Covid-19 cases for that country (total_cases), the mean death rate for each country taken from all of the death rates reported for each country (mean_deathRate), the GDP per capita for each country (GDP_PerCap), and each country's population (Population). The resulting dataset provides a summary of the compiled data with one row per country.
+
+```{r}
+gdp_perCap = gdp %>% filter(Series == "GDP per capita (US dollars)" & Year == 2019 )
+#gdp_perCap
+covid.gdp = inner_join(covid,gdp_perCap, by = c('Country' = 'Name'))
+pop_count = pop %>% filter (Series == "Population mid-year estimates (millions)" & Year == 2021)
+#pop_count
+covid.gdp.pop = inner_join(covid.gdp,pop_count, by = c('Country' = 'Name'))
+covid.gdp.pop$Value.y = covid.gdp.pop$Value.y * 1000000
+names(covid.gdp.pop)[names(covid.gdp.pop) == "Value.y"] <- "Population"
+names(covid.gdp.pop)[names(covid.gdp.pop) == "Value.x"] <- "GDP_PerCap"
+covid.gdp.pop$Death.Rate = (covid.gdp.pop$New_deaths / covid.gdp.pop$Population)
+
+data = covid.gdp.pop[c("Date_reported", "Country", "New_cases", "New_deaths", "GDP_PerCap", "Population", "Death.Rate")]
+
+summary(data)
+
+dataSum = data %>% group_by(Country) %>% summarise(total_cases = sum(New_cases), mean_deathRate = mean(Death.Rate), GDP_PerCap = max(GDP_PerCap), Population = max(Population), .groups = 'drop')
+```
+
+## Model Proposal 
+
+The model considered will be the basic first order regression model with one predictor variable. This was chosen because regression models are ideal for gaining insight about the relationships between independent and dependent variables in a linear function. This is exactly what is needed in order to answer our questions of interest, since they are about the strength and nature of the relationships between predictor and response variables.
+
+The model assumptions of the regression model is that the relationship is linear, errors are normally distributed, equal variance of error, and independent observations (1).
+
+$$Y_i = \beta_0 + \beta_1 X_{1} + \varepsilon_i$$
+
+Here:
+
+- $Y_i$ is the value of the response variable
+
+- $\beta_0$ and $\beta_1$ are the parameters 
+
+- $X_i$ is the predictor variable
+
+- $\varepsilon_i$ is the random error term
+
+
+
+## Model Fitting
+
+```{r}
+model.gdp = lm(mean_deathRate ~ GDP_PerCap, data = dataSum)
+model.pop = lm(mean_deathRate ~ Population, data = dataSum)
+gdp.co= model.gdp$coefficients
+pop.co= model.pop$coefficients
+mod2.coef0 = pop.co[1]
+mod2.coef1 = pop.co[2]
+mod1.coef0 = gdp.co[1]
+mod1.coef1 = gdp.co[2]
+```
+
+Fitted regression model with GDP as the predictor variable:
+
+$$Y_1 = `r mod1.coef0` + (`r mod1.coef1`) X_{1} + \varepsilon_1$$
+
+Fitted regression model with population as the predictor variable:
+
+$$Y_2 = `r mod2.coef0` + (`r mod2.coef1`) X_{2} + \varepsilon_2$$
+
+Here we see the fitted regression models for using GDP per capita and population as the predictor variables, respectively. Since the value of $\beta_1$ is positive in $Y_1$ and negative in $Y_2$ we can assume a positive correlation between the predictor and response variables in the first model and a negative correlation between the predictor and response variables in the second model. This means that there is a positive relationship between GDP per capita and Covid-19 death rates and a negative relationship between population and Covid-19 death rates.
+
+## Model Diagnostics & Sensitivity Analysis 
+
+Below is the correlation matrix showing the bivariate correlation relationships between the predictor variables and the response variable:
+```{r}
+corData = data.frame(c(dataSum[3:3], dataSum[5:5], dataSum[4:4]))
+cor(corData)
+```
+This correlation matrix helps us verify our assumptions made about the correlations between each of the predictor variables and the response variable, specifically, whether or not a country's population and GDP per capita have positive correlations with mean Covid-19 death rates. Since the value of the correlation coefficient between mean death death rate and population is negative this indicates a negative relationship between these two. In comparison, the correlation coefficient between GDP per capita and mean Covid-19 death rate is positive and closer to 1 than the correlation coefficient of mean death rate and population (0.1502 vs. -0.0705), so, we assume that there is a positive correlation between these, and that this bivariate relationship is stronger.
+
+Here, the coefficient of determination $R^2$ are obtained, which tells us the proportion of variance in the dependent variable that can be explained by the independent variable. We do this in order to try to get an idea of which model is better.
+```{r}
+R1 = summary(model.gdp)$r.squared
+R1
+R2 = summary(model.pop)$r.squared
+R2
+```
+
+The $R^2$ value for the model using GDP per capita as a predictor variable has a higher value than that for the model using population as a predictor variable (0.02257137 vs. 0.00497603). This may be an indication that the first model is preferrable, however, more verification is needed to make this conclusion.
+
+Plots for the model with GDP per capita as it's predictor variable:
+```{r}
+plot(model.gdp)
+```
+
+Plots for the model with population as it's predictor variable:
+```{r}
+plot(model.pop)
+```
+
+Since for both of the Normal Q-Q plots we see significance departure from the line pattern, we can say that the assumption of Normality cannot be verified with great confidence for either model. 
+
+For the Residuals vs. Fitted plots, we see our red lines following zero relatively closely, but the dispertion of our data points about zero is not very even. This tells us that we may not be able to assume constancy of error with great confidence for our models. However, the graph for the model using GDP per capita as a predictor variable shows a marginally better fit, indicating better constancy of error in this model.  
+
+The scale location graph for the model using GDP per capita as a predictor variable tells us that we can verify the equal variance assumption with marginal confidence for this model since the line going across the fitted values is relatively horizontal. This line for the graph for the model using population as a predictor is not as horizontal, indicating that we have less confidence in assuming equal variance for this model.
+
+We don't see any observations fall outside of Cook's distance in the residuals, so we do not have any influential observations for either plot, which is an indication that the models used are a good fit for the data.
+
+## Conclusion
+
+The findings of the research and analasis provide some interesting insight into the proposed questions of interest. The study intended to answer the questions: Does a country's population or gross domestic product (GDP) per capita provide a better predictor variable for it's death rate due to Covid-19? Does each predictor variable have a positive or negative correlation with the response variable?
+
+Through fitting two basic regression models, one using GDP per capita as the predictor variable and the other using country population some insightful conclusions were reached. By looking at the sign of the $\beta_1$ coefficients and verifying with a correlation matrix, it was found that there was a negative correlation between a country's population and mean Covid-19 death rate and a positive correlation between a country's GDP per capita and mean Covid-19 death rate. Additionally, the correlation matrix gave an indication that a country's GDP per capita may be a better predictor of its mean Covid-19 death rate. 
+
+In attempts to verify the fit of the chosen predictor variables, Residuals vs Fitted, Normal Q-Q, Scale-Location, and Residuals vs Leverage graphs were generated from each of the fitted models. From this it was realized that neither predictor variable on its own provided a great prediction model for the response variable; however, the model including GDP per capita as its predictor variable seemed to be somewhat better through analysis of the graphs, which supports the previous hypothesis based on the correlation matrix. 
+
+The fact that neither model provided perfect fits makes sense, since we are only including one variable in each model, which could not be expected to reasonably provide an accurate fit for such a complex topic such as death rates from Covid-19. This alludes to the main caveat of this study, that only one predictor variable was included in each model. In order for the models to provide better fits for the data, more variables from the datasets would need to be included. If this were done, the additional variables could be tested against each other in more fitted regression models to see which have the greatest importance. Additionally, each regression model is only single variable, for more accurate and in-depth insight into our data we could have a linear regression model with more than one predictor variable. This would allow further analysis on the models to be conducted and more conclusions about which predictor variables are the best to be reached; for instance, one could test full and reduced models against each other, including and excluding variables in order to test if certain variables are statistically significant in the model.
+
+Overall, this was a very interesting study that brought forth information about how parts of society that we may not consider being necessarily related to Covid-19, actually do have an impact in this regard.
+
+
+
+## Sources:
+
+1. “Regression Model Assumptions.” JMP, https://www.jmp.com/en_us/statistics-knowledge-portal/what-is-regression/simple-linear-regression-assumptions.html. 
+
+2. “UN data.” United Nations, United Nations, https://data.un.org/. 
+
+3. “Coronavirus Disease (Covid-19) Situation Reports.” World Health Organization, World Health Organization, https://www.who.int/emergencies/diseases/novel-coronavirus-2019/situation-reports. 
+
+4. “CDC Museum Covid-19 Timeline.” Centers for Disease Control and Prevention, Centers for Disease Control and Prevention, 5 Jan. 2022, https://www.cdc.gov/museum/timeline/covid19.html. 
+
+# Session info {-}
+
+```{r}
+sessionInfo()
+```
